@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Coastal LyreBird Letter Formatter</title>
+    <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.js"></script>
+    <script type="text/javascript" src="code.js?v=15"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 18px; color: #24343a; background: #ffffff; }
+        h2 { font-size: 17px; margin: 0 0 8px 0; color: #0f6f70; }
+        p { font-size: 12px; line-height: 1.4; }
+        button {
+            width: 100%; padding: 11px 14px; border: 0; border-radius: 5px;
+            background: #0f7778; color: white; font-weight: 700; cursor: pointer;
+        }
+        button:disabled { opacity: 0.55; cursor: default; }
+        #status { margin-top: 12px; font-size: 11px; line-height: 1.35; }
+        .note { margin-top: 12px; font-size: 10px; color: #66757b; }
+    </style>
+</head>
+<body>
+    <h2>Coastal Letter Formatter</h2>
+    <p>Formats the LyreBird clinical content only. Xestro demographics, letterhead and sign-off are left untouched.</p>
+    <button id="formatBtn" onclick="formatCoastalLetter()">Format current letter</button>
+    <div id="status">Loading…</div>
+    <div class="note">v15 — latest LyreBird template</div>
+</body>
+</html>
