@@ -1,12 +1,12 @@
 {
   "name": "Coastal LyreBird Letter Formatter",
   "guid": "asc.{C4F1A1B8-8B69-4D1B-A48F-150926C0A57E}",
-  "version": "15.0.0",
+  "version": "16.0.0",
   "baseUrl": "",
   "variations": [
     {
       "description": "Formats LyreBird clinical text inside Xestro GP letters.",
-      "url": "index.html",
+      "url": "index.html?v=16",
       "icons": [
         "icon.png",
         "icon@2x.png"
