@@ -3,7 +3,7 @@
 
     /*
      * Coastal Respiratory & Sleep Specialists
-     * Xestro / ONLYOFFICE Clinical Letter Formatter v19
+     * Xestro / ONLYOFFICE Clinical Letter Formatter v25 FIXED CANDIDATE
      *
      * PURPOSE
      * -------
@@ -12,15 +12,18 @@
      * letterhead, date, Re:/demographics, salutation, signature/author block,
      * provider number, cc, disclaimer and footer.
      *
-     * v19 final layout (matched to the approved 11.5 pt preview):
-     * - clinical body text is 11.5 pt; major clinical section headings are 12 pt bold
-     * - true numbered diagnosis/problem lists align their numbers with section headings
-     * - dash subpoints use the approved 30 pt hanging indent so wrapped lines align with subpoint text
-     * - investigations are compact italic bullet points with bold investigation labels
-     * - blank paragraphs between consecutive investigations are removed
-     * - Follow-up is bold, unnumbered, and aligned with numbered problem text
-     * - optional/missing sections (including Investigations and Smoking status) require no special handling
-     * - conservative pagination; Xestro-owned content remains untouched
+     * v25 fixed-candidate layout (measured directly from the user-corrected Greg DOCX):
+     * - Arial 11 pt black justified clinical body; Arial 12 pt black bold-underlined major headings
+     * - one blank line BEFORE major section headings; NO blank line AFTER headings
+     * - headings have 0 pt paragraph-after spacing
+     * - the opening LyreBird summary paragraph has 12 pt paragraph-before spacing
+     * - numbered diagnoses/problems align number at the section left edge; item text begins 18 pt in
+     * - dash subpoints use 36 pt text indent with a 9 pt hanging indent
+     * - investigations are compact italic bullets with bold-italic investigation labels
+     * - later numbered items have 1.5 pt before; subpoints have no extra paragraph spacing
+     * - Smoking status/history remains unnumbered; Follow-up remains bold and unnumbered
+     * - optional/missing sections remain safe; consecutive blank clinical lines collapse to one
+     * - Xestro-owned salutation/sign-off/signature/footer remain untouched
      */
 
     function setStatus(text, isError) {
@@ -41,14 +44,76 @@
                 var paragraphs = doc.GetAllParagraphs();
 
                 // Formatting dimensions in twips (20 twips = 1 point).
-                // These values reproduce the approved final 11.5 pt preview.
-                var BODY_FONT_SIZE = 23;             // 11.5 pt (ONLYOFFICE uses half-points)
+                // These values reproduce the approved v21 typography plus the user-approved
+                // Michelle section/line-spacing pattern.
+                var BODY_FONT_SIZE = 22;             // 11 pt (ONLYOFFICE uses half-points)
                 var HEADING_FONT_SIZE = 24;          // 12 pt
                 var MAIN_LIST_TEXT_INDENT = 360;     // 18 pt: text position; number starts at left margin
-                var SUBPOINT_TEXT_INDENT = 600;      // 30 pt: approved final subpoint text position
-                var SUBPOINT_HANG = 180;             // 9 pt: dash sits at 21 pt; wrapped text starts at 30 pt
+                var SUBPOINT_TEXT_INDENT = 720;      // 36 pt: matches the slightly deeper indent in edited output 46
+                var SUBPOINT_HANG = 180;             // 9 pt: dash sits at 27 pt; wrapped text starts at 36 pt
                 var INVESTIGATION_TEXT_INDENT = 720; // 36 pt
                 var INVESTIGATION_HANG = 360;        // bullet at 18 pt, text at 36 pt
+                var BLANK_LINE_SPACING = 240;          // single-spaced blank paragraph (1.0 line)
+                var HEADING_GAP_BEFORE = 80;           // 4 pt when a blank line already precedes later headings
+                var HEADING_NO_BLANK_BEFORE = 320;     // 16 pt if LyreBird omits the normal pre-heading blank
+                var FIRST_HEADING_NO_BLANK_BEFORE = 240; // 12 pt if the first heading has no source blank
+                var FIRST_CLINICAL_PROSE_GAP = 240;    // 12 pt before the opening LyreBird summary paragraph
+                var POST_INVESTIGATION_PROSE_GAP = 240; // 12 pt before narrative after investigations
+                var CLINICAL_BLACK = Api.HexColor("#000000");
+
+                // Canonical display text for recognised section headings.
+                // This allows LyreBird to output ALL CAPS, Title Case or a trailing colon
+                // while the final letter is presented consistently.
+                var CANONICAL_HEADINGS = {
+                    "HISTORY OF PRESENTING COMPLAINT": "History of Presenting Complaint",
+                    "HISTORY OF PRESENTING ILLNESS": "History of Presenting Illness",
+                    "HOPC": "HOPC",
+                    "INTERVAL HISTORY": "Interval History",
+                    "REASON FOR REVIEW": "Reason for Review",
+                    "BACKGROUND MEDICAL HISTORY": "Background Medical History",
+                    "PAST MEDICAL HISTORY": "Past Medical History",
+                    "MEDICAL HISTORY": "Medical History",
+                    "RESPIRATORY HISTORY": "Respiratory History",
+                    "SLEEP HISTORY": "Sleep History",
+                    "SMOKING HISTORY": "Smoking History",
+                    "SOCIAL HISTORY": "Social History",
+                    "SOCIAL & EXPOSURE HISTORY": "Social & Exposure History",
+                    "SOCIAL AND EXPOSURE HISTORY": "Social and Exposure History",
+                    "OCCUPATIONAL HISTORY": "Occupational History",
+                    "OCCUPATIONAL & EXPOSURE HISTORY": "Occupational & Exposure History",
+                    "OCCUPATIONAL AND EXPOSURE HISTORY": "Occupational and Exposure History",
+                    "EXPOSURE HISTORY": "Exposure History",
+                    "FAMILY HISTORY": "Family History",
+                    "FAMILY / SOCIAL HISTORY": "Family / Social History",
+                    "FAMILY/SOCIAL HISTORY": "Family/Social History",
+                    "TRAVEL HISTORY": "Travel History",
+                    "OCCUPATION": "Occupation",
+                    "MEDICATIONS": "Medications",
+                    "CURRENT MEDICATIONS": "Current Medications",
+                    "ADVERSE DRUG REACTIONS": "Adverse Drug Reactions",
+                    "ALLERGIES": "Allergies",
+                    "ALLERGIES AND ADR": "Allergies and ADR",
+                    "ALLERGIES & ADR": "Allergies & ADR",
+                    "INVESTIGATIONS": "Investigations",
+                    "EXAMINATION": "Examination",
+                    "EXAMINATION FINDINGS": "Examination Findings",
+                    "PHYSICAL EXAMINATION": "Physical Examination",
+                    "CURRENT ASSESSMENT": "Current Assessment",
+                    "ASSESSMENT": "Assessment",
+                    "ASSESSMENT / ISSUES": "Assessment / Issues",
+                    "ASSESSMENT/ISSUES": "Assessment/Issues",
+                    "ASSESSMENT / KEY ISSUES": "Assessment / Key Issues",
+                    "ASSESSMENT/KEY ISSUES": "Assessment/Key Issues",
+                    "ASSESSMENT AND ISSUES": "Assessment and Issues",
+                    "ASSESSMENT & ISSUES": "Assessment & Issues",
+                    "IMPRESSION": "Impression",
+                    "IMPRESSION / DIAGNOSIS": "Impression / Diagnosis",
+                    "IMPRESSION/DIAGNOSIS": "Impression/Diagnosis",
+                    "DIAGNOSIS": "Diagnosis",
+                    "CURRENT PROBLEMS": "Current Problems",
+                    "PLAN": "Plan",
+                    "MANAGEMENT PLAN": "Management Plan"
+                };
 
                 // LyreBird headings are accepted with or without trailing colons.
                 var SECTION_HEADINGS = {
@@ -150,6 +215,11 @@
                         .toUpperCase();
                 }
 
+                function canonicalHeadingText(text) {
+                    var h = normHeading(text);
+                    return CANONICAL_HEADINGS[h] || null;
+                }
+
                 function isHeading(text) {
                     return !!SECTION_HEADINGS[normHeading(text)];
                 }
@@ -177,7 +247,7 @@
 
                 function isUnnumberedHistoryLine(text) {
                     var t = (text || "").trim();
-                    return /^(Smoking status|Smoking|Tobacco use|Pack[- ]?years?)\s*:/i.test(t);
+                    return /^(Smoking status|Smoking history|Smoking|Tobacco use|Pack[- ]?years?|Vaping history|E-cigarette use)\s*:/i.test(t);
                 }
 
                 function isXestroBoundary(text) {
@@ -186,7 +256,7 @@
                         /^Yours sincerely[,;]?$/i.test(t) ||
                         /^Kind regards[,;]?$/i.test(t) ||
                         /^Regards[,;]?$/i.test(t) ||
-                        /^Dr\s+Jonathan\s+Banks\b/i.test(t) ||
+                        /^Dr\.?\s+Jonathan\s+Banks\b/i.test(t) ||
                         /^Resp\/Sleep\/Gen Med Phys\./i.test(t) ||
                         /^Coastal Respiratory & Sleep Specialists$/i.test(t) ||
                         /^Prov:/i.test(t) ||
@@ -217,6 +287,22 @@
                     return false;
                 }
 
+                function normaliseClinicalText(p) {
+                    if (!p) return;
+                    p.SetFontFamily("Arial");
+                    p.SetColor(CLINICAL_BLACK);
+                    p.SetHighlight("none");
+                    if (typeof p.SetSpacingLine === "function") {
+                        p.SetSpacingLine(240, "auto");
+                    }
+                    if (typeof p.SetJc === "function") {
+                        p.SetJc("both");
+                    }
+                    if (typeof p.SetWidowControl === "function") {
+                        p.SetWidowControl(true);
+                    }
+                }
+
                 function makeNumbering() {
                     var numbering = doc.CreateNumbering("numbered");
                     var level = numbering.GetLevel(0);
@@ -241,25 +327,29 @@
                     return numbering;
                 }
 
-                function applyMainNumbering(p, numbering) {
+                function applyMainNumbering(p, numbering, isFirstItem) {
+                    normaliseClinicalText(p);
                     p.SetNumbering(numbering.GetLevel(0));
                     // Direct paragraph indents make the alignment deterministic even if
                     // ONLYOFFICE retains an older list indent on a re-formatted paragraph.
                     p.SetIndLeft(MAIN_LIST_TEXT_INDENT);
                     p.SetIndFirstLine(-MAIN_LIST_TEXT_INDENT);
-                    p.SetSpacingBefore(30, false);
+                    p.SetSpacingBefore(isFirstItem ? 0 : 30, false);
                     p.SetSpacingAfter(0, false);
                     p.SetContextualSpacing(false);
                     p.SetBold(true);
                     p.SetItalic(false);
-                    p.SetFontSize(BODY_FONT_SIZE); // 11.5 pt
+                    p.SetUnderline("none");
+                    p.SetFontSize(BODY_FONT_SIZE); // 11 pt
                     p.SetHighlight("none");
                     p.SetKeepLines(true);
                 }
 
                 function formatSubPoint(p) {
-                    // Hanging indent: the dash remains at 36 pt, while wrapped lines start
-                    // under the first word (e.g. "years" aligns with "Brother").
+                    // Proper hanging indent: no literal leading spaces are inserted.
+                    // The dash sits at 27 pt and all wrapped lines begin at 36 pt,
+                    // matching the edited output while keeping multi-line subpoints aligned.
+                    normaliseClinicalText(p);
                     p.SetIndLeft(SUBPOINT_TEXT_INDENT);
                     p.SetIndFirstLine(-SUBPOINT_HANG);
                     p.SetSpacingBefore(0, false);
@@ -267,20 +357,23 @@
                     p.SetContextualSpacing(true);
                     p.SetBold(false);
                     p.SetItalic(false);
-                    p.SetFontSize(BODY_FONT_SIZE); // 11.5 pt
+                    p.SetUnderline("none");
+                    p.SetFontSize(BODY_FONT_SIZE); // 11 pt
                     p.SetHighlight("none");
                     p.SetKeepLines(true);
                     p.SetWidowControl(true);
                 }
 
                 function formatUnnumberedHistoryLine(p) {
+                    normaliseClinicalText(p);
                     p.SetIndLeft(0);
                     p.SetSpacingBefore(80, false);
                     p.SetSpacingAfter(0, false);
                     p.SetContextualSpacing(false);
                     p.SetBold(false);
                     p.SetItalic(false);
-                    p.SetFontSize(BODY_FONT_SIZE); // 11.5 pt
+                    p.SetUnderline("none");
+                    p.SetFontSize(BODY_FONT_SIZE); // 11 pt
                     p.SetHighlight("none");
                     p.SetKeepLines(true);
                     var t = cleanText(p);
@@ -291,26 +384,37 @@
                     }
                 }
 
-                function formatHeading(p) {
+                function formatHeading(p, isFirstMajorHeading, hasBlankBefore, hasBlankAfter) {
+                    normaliseClinicalText(p);
                     p.SetBold(true);
                     p.SetItalic(false);
+                    p.SetUnderline("single");
                     p.SetFontSize(HEADING_FONT_SIZE); // 12 pt section headings
-                    p.SetHighlight("none");
                     p.SetIndLeft(0);
                     p.SetIndFirstLine(0);
-                    p.SetSpacingBefore(80, false);
-                    p.SetSpacingAfter(20, false);
+
+                    // Exact rhythm from the corrected Greg file:
+                    // preserve one blank line BEFORE a major heading, remove any blank line
+                    // AFTER it, and place the first content line immediately under the heading.
+                    if (hasBlankBefore) {
+                        p.SetSpacingBefore(isFirstMajorHeading ? 0 : HEADING_GAP_BEFORE, false);
+                    } else {
+                        p.SetSpacingBefore(isFirstMajorHeading ? FIRST_HEADING_NO_BLANK_BEFORE : HEADING_NO_BLANK_BEFORE, false);
+                    }
+                    p.SetSpacingAfter(0, false);
                     p.SetContextualSpacing(false);
                     p.SetKeepLines(true);
                     p.SetKeepNext(true);
                 }
 
                 function formatFollowUpHeading(p) {
+                    normaliseClinicalText(p);
                     // Follow-up is a plan-level subheading, not a numbered clinical problem.
                     // Align it with the text of numbered problems (18 pt from the left).
                     p.SetBold(true);
                     p.SetItalic(false);
-                    p.SetFontSize(BODY_FONT_SIZE); // 11.5 pt
+                    p.SetUnderline("none");
+                    p.SetFontSize(BODY_FONT_SIZE); // 11 pt
                     p.SetHighlight("none");
                     p.SetIndLeft(MAIN_LIST_TEXT_INDENT);
                     p.SetIndFirstLine(0);
@@ -322,6 +426,7 @@
                 }
 
                 function formatFollowUpBody(p) {
+                    normaliseClinicalText(p);
                     p.SetIndLeft(SUBPOINT_TEXT_INDENT);
                     p.SetIndFirstLine(0);
                     p.SetFontSize(BODY_FONT_SIZE);
@@ -333,20 +438,22 @@
                     p.SetWidowControl(true);
                 }
 
-                function formatBody(p) {
+                function formatBody(p, spacingBeforeTwips) {
+                    normaliseClinicalText(p);
                     // General LyreBird clinical prose. Preserve inline emphasis but normalise
                     // the approved body size and paragraph geometry.
                     p.SetFontSize(BODY_FONT_SIZE);
                     p.SetHighlight("none");
                     p.SetIndLeft(0);
                     p.SetIndFirstLine(0);
-                    p.SetSpacingBefore(0, false);
+                    p.SetSpacingBefore(spacingBeforeTwips || 0, false);
                     p.SetSpacingAfter(0, false);
                     p.SetContextualSpacing(false);
                     p.SetWidowControl(true);
                 }
 
                 function formatInvestigation(p, bulletNumbering) {
+                    normaliseClinicalText(p);
                     // Compact bullet list. The full investigation line is italic; the
                     // investigation/provider/date label through the first colon is bold italic.
                     p.SetNumbering(bulletNumbering.GetLevel(0));
@@ -354,7 +461,8 @@
                     p.SetIndFirstLine(-INVESTIGATION_HANG);
                     p.SetItalic(true);
                     p.SetBold(false);
-                    p.SetFontSize(BODY_FONT_SIZE); // 11.5 pt
+                    p.SetUnderline("none");
+                    p.SetFontSize(BODY_FONT_SIZE); // 11 pt
                     p.SetHighlight("none");
                     p.SetSpacingBefore(0, false);
                     p.SetSpacingAfter(0, false);
@@ -381,6 +489,14 @@
                     return "";
                 }
 
+                function hasImmediateBlankBefore(index) {
+                    return index > 0 && !cleanText(paragraphs[index - 1]);
+                }
+
+                function hasImmediateBlankAfter(index) {
+                    return index + 1 < paragraphs.length && !cleanText(paragraphs[index + 1]);
+                }
+
                 /*
                  * FIRST PASS: locate and format the clinical body.
                  */
@@ -390,22 +506,51 @@
                 var planNumbering = null;
                 var investigationBulletNumbering = null;
                 var investigationCount = 0;
-                var investigationBlankParas = [];
+                var blankParasToDelete = [];
+                var previousClinicalWasBlank = false;
+
+                function queueBlankDelete(bp) {
+                    if (!bp) return;
+                    if (blankParasToDelete.indexOf(bp) < 0) blankParasToDelete.push(bp);
+                }
+                var historyItemCount = 0;
+                var assessmentItemCount = 0;
+                var planItemCount = 0;
                 var clinicalFormattingStarted = false;
                 var afterSalutation = false;
+                var majorHeadingCount = 0;
+                var firstClinicalContentSeen = false;
 
                 for (var i = 0; i < paragraphs.length; i++) {
                     var p = paragraphs[i];
                     var text = cleanText(p);
 
                     if (!text) {
-                        // Remove only blank paragraphs that sit BETWEEN consecutive
-                        // investigation items. Keep the blank space after the final
-                        // investigation before the narrative section.
+                        // Within the LyreBird clinical area, preserve one intentional blank line,
+                        // but collapse runs of two or more blank paragraphs. This makes the
+                        // formatter tolerant of small LyreBird spacing variations while keeping
+                        // the user-approved Michelle vertical rhythm.
+                        if (clinicalFormattingStarted || afterSalutation) {
+                            try {
+                                p.SetSpacingBefore(0, false);
+                                p.SetSpacingAfter(0, false);
+                                if (typeof p.SetSpacingLine === "function") p.SetSpacingLine(BLANK_LINE_SPACING, "auto");
+                            } catch (ignoreBlankFormattingError) {}
+
+                            if (previousClinicalWasBlank) {
+                                queueBlankDelete(p);
+                            } else {
+                                previousClinicalWasBlank = true;
+                            }
+                        }
+
+                        // Blank paragraphs BETWEEN consecutive investigation items are removed
+                        // entirely so the investigation list stays compact. Keep one blank after
+                        // the final investigation before narrative prose.
                         if (mode === "investigations" && investigationCount > 0) {
                             var nextInvestigationText = nextNonEmptyText(i);
                             if (looksLikeInvestigation(nextInvestigationText)) {
-                                investigationBlankParas.push(p);
+                                queueBlankDelete(p);
                             }
                         }
                         continue;
@@ -416,6 +561,7 @@
                         // the start of LyreBird's clinical body, even if no optional section
                         // headings are present.
                         afterSalutation = true;
+                        previousClinicalWasBlank = false;
                         mode = "";
                         clinicalFormattingStarted = false;
                         continue;
@@ -429,10 +575,16 @@
                         continue;
                     }
 
+                    var isFirstClinicalContent = false;
                     if (afterSalutation) {
                         clinicalFormattingStarted = true;
                         afterSalutation = false;
+                        if (!firstClinicalContentSeen) {
+                            isFirstClinicalContent = true;
+                            firstClinicalContentSeen = true;
+                        }
                     }
+                    if (clinicalFormattingStarted) previousClinicalWasBlank = false;
 
                     var h = normHeading(text);
 
@@ -446,10 +598,21 @@
                     if (isHeading(text) || (clinicalFormattingStarted && looksLikeGenericClinicalHeading(text))) {
                         clinicalFormattingStarted = true;
 
-                        // Do not rewrite paragraph text here. Changing paragraph text while
-                        // iterating can invalidate ONLYOFFICE paragraph references and was the
-                        // cause of the flattened v16 assessment/plan formatting.
-                        formatHeading(p);
+                        // For recognised headings, replace the visible text with the canonical
+                        // Title Case form used in output 46. ApiParagraph.SetText is used only
+                        // on the heading paragraph itself; list/body paragraphs are untouched.
+                        var canonicalHeading = canonicalHeadingText(text);
+                        if (canonicalHeading && typeof p.SetText === "function") {
+                            p.SetText(canonicalHeading);
+                        }
+
+                        var blankAfterHeading = hasImmediateBlankAfter(i);
+                        formatHeading(p, majorHeadingCount === 0, hasImmediateBlankBefore(i), blankAfterHeading);
+                        // User-corrected layout: no blank paragraph after major headings.
+                        if (blankAfterHeading && i + 1 < paragraphs.length) {
+                            queueBlankDelete(paragraphs[i + 1]);
+                        }
+                        majorHeadingCount++;
 
                         mode = "";
                         investigationCount = 0;
@@ -457,15 +620,18 @@
                         if (HISTORY_HEADINGS[h]) {
                             mode = "history";
                             historyNumbering = makeNumbering();
+                            historyItemCount = 0;
                         } else if (h === "INVESTIGATIONS") {
                             mode = "investigations";
                             investigationBulletNumbering = makeInvestigationBullets();
                         } else if (ASSESSMENT_HEADINGS[h]) {
                             mode = "assessment";
                             assessmentNumbering = makeNumbering();
+                            assessmentItemCount = 0;
                         } else if (PLAN_HEADINGS[h]) {
                             mode = "plan";
                             planNumbering = makeNumbering();
+                            planItemCount = 0;
                         }
                         continue;
                     }
@@ -481,7 +647,8 @@
                         } else if (isUnnumberedHistoryLine(text)) {
                             formatUnnumberedHistoryLine(p);
                         } else {
-                            applyMainNumbering(p, historyNumbering);
+                            applyMainNumbering(p, historyNumbering, historyItemCount === 0);
+                            historyItemCount++;
                             if (isSubPoint(nextNonEmptyText(i))) {
                                 p.SetKeepNext(true);
                             }
@@ -493,7 +660,8 @@
                         if (isSubPoint(text)) {
                             formatSubPoint(p);
                         } else {
-                            applyMainNumbering(p, assessmentNumbering);
+                            applyMainNumbering(p, assessmentNumbering, assessmentItemCount === 0);
+                            assessmentItemCount++;
                             if (isSubPoint(nextNonEmptyText(i))) {
                                 p.SetKeepNext(true);
                             }
@@ -505,7 +673,8 @@
                         if (isSubPoint(text)) {
                             formatSubPoint(p);
                         } else {
-                            applyMainNumbering(p, planNumbering);
+                            applyMainNumbering(p, planNumbering, planItemCount === 0);
+                            planItemCount++;
                             if (isSubPoint(nextNonEmptyText(i))) {
                                 p.SetKeepNext(true);
                             }
@@ -533,21 +702,21 @@
                         // of the investigation list. This also handles an intentionally empty
                         // Investigations section without breaking subsequent formatting.
                         mode = "";
-                        formatBody(p);
+                        formatBody(p, POST_INVESTIGATION_PROSE_GAP);
                         continue;
                     }
 
                     // General clinical prose in optional or unrecognised sections.
                     if (clinicalFormattingStarted) {
-                        formatBody(p);
+                        formatBody(p, isFirstClinicalContent ? FIRST_CLINICAL_PROSE_GAP : 0);
                     }
                 }
 
-                // Delete blank paragraphs between investigation bullets in reverse order.
-                // ApiParagraph.Delete is supported in current ONLYOFFICE builds. A tiny-line
-                // fallback prevents a visible blank line on older builds.
-                for (var b = investigationBlankParas.length - 1; b >= 0; b--) {
-                    var bp = investigationBlankParas[b];
+                // Delete redundant clinical blanks (including blanks between investigation
+                // bullets) in reverse order. ApiParagraph.Delete is supported in current
+                // ONLYOFFICE builds. A tiny-line fallback prevents a visible gap on older builds.
+                for (var b = blankParasToDelete.length - 1; b >= 0; b--) {
+                    var bp = blankParasToDelete[b];
                     try {
                         if (bp && typeof bp.Delete === "function") {
                             bp.Delete();
@@ -670,7 +839,7 @@
     };
 
     window.Asc.plugin.init = function () {
-        setStatus("Coastal LyreBird Formatter v19 loaded — click Format current letter.", false);
+        setStatus("Coastal LyreBird Formatter v25 FIXED CANDIDATE loaded — click Format current letter.", false);
     };
 
     window.Asc.plugin.button = function (id) {
