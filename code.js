@@ -3,7 +3,7 @@
 
     /*
      * Coastal Respiratory & Sleep Specialists
-     * Xestro / ONLYOFFICE Clinical Letter Formatter v16
+     * Xestro / ONLYOFFICE Clinical Letter Formatter v17
      *
      * PURPOSE
      * -------
@@ -12,15 +12,14 @@
      * letterhead, date, Re:/demographics, salutation, signature/author block,
      * provider number, cc, disclaimer and footer.
      *
-     * v16 refinements:
-     * - keeps section headings with following clinical content
-     * - keeps a numbered diagnosis/problem with its first dash subpoint where practical
-     * - reduces dash-subpoint indentation
-     * - keeps short investigation paragraphs intact across page breaks
-     * - keeps INVESTIGATIONS with the first (and, where present, second) result
-     * - standardises assessment headings to ASSESSMENT / ISSUES:
-     * - treats Follow-up as a bold subheading within PLAN
-     * - prevents Smoking status lines from becoming numbered diagnoses
+     * v17 professional layout:
+     * - restores the reliable v15 numbering structure
+     * - clear hierarchy: bold numbered diagnoses/problems, indented dash subpoints
+     * - conservative pagination: headings stay with next paragraph only
+     * - investigation label bold, result text normal (not whole-paragraph italics)
+     * - Follow-up is an unnumbered bold subheading inside PLAN
+     * - Smoking status remains unnumbered
+     * - no text rewriting while the document is being formatted
      */
 
     function setStatus(text, isError) {
@@ -41,8 +40,8 @@
                 var paragraphs = doc.GetAllParagraphs();
 
                 // Formatting dimensions in twips.
-                var SUBPOINT_INDENT = 720;        // ~1.27 cm; reduced from v15
-                var INVESTIGATION_INDENT = 720;   // ~1.27 cm
+                var SUBPOINT_INDENT = 720;        // ~1.27 cm
+                var INVESTIGATION_INDENT = 360;   // subtle ~0.64 cm
 
                 // LyreBird headings are accepted with or without trailing colons.
                 var SECTION_HEADINGS = {
@@ -195,9 +194,10 @@
                 function applyMainNumbering(p, numbering) {
                     p.SetNumbering(numbering.GetLevel(0));
                     p.SetIndLeft(0);
-                    p.SetSpacingBefore(0, false);
+                    p.SetSpacingBefore(60, false);
                     p.SetSpacingAfter(0, false);
-                    p.SetContextualSpacing(true);
+                    p.SetContextualSpacing(false);
+                    p.SetBold(true);
                     p.SetItalic(false);
                     p.SetKeepLines(true);
                 }
@@ -207,6 +207,7 @@
                     p.SetSpacingBefore(0, false);
                     p.SetSpacingAfter(0, false);
                     p.SetContextualSpacing(true);
+                    p.SetBold(false);
                     p.SetItalic(false);
                     p.SetKeepLines(true);
                     p.SetWidowControl(true);
@@ -214,42 +215,59 @@
 
                 function formatUnnumberedHistoryLine(p) {
                     p.SetIndLeft(0);
-                    p.SetSpacingBefore(0, false);
-                    p.SetSpacingAfter(0, false);
-                    p.SetContextualSpacing(true);
+                    p.SetSpacingBefore(120, false);
+                    p.SetSpacingAfter(120, false);
+                    p.SetContextualSpacing(false);
+                    p.SetBold(false);
                     p.SetItalic(false);
                     p.SetKeepLines(true);
+                    var t = cleanText(p);
+                    var c = t.indexOf(":");
+                    if (c >= 0) {
+                        var r = p.GetRange(0, c + 1);
+                        if (r) r.SetBold(true);
+                    }
                 }
 
                 function formatHeading(p) {
                     p.SetBold(true);
                     p.SetItalic(false);
                     p.SetIndLeft(0);
-                    p.SetSpacingBefore(0, false);
-                    p.SetSpacingAfter(0, false);
+                    p.SetSpacingBefore(120, false);
+                    p.SetSpacingAfter(40, false);
+                    p.SetContextualSpacing(false);
                     p.SetKeepLines(true);
                     p.SetKeepNext(true);
                 }
 
                 function formatFollowUpHeading(p) {
-                    p.SetText("Follow-up");
                     p.SetBold(true);
                     p.SetItalic(false);
                     p.SetIndLeft(0);
-                    p.SetSpacingBefore(0, false);
+                    p.SetSpacingBefore(120, false);
                     p.SetSpacingAfter(0, false);
+                    p.SetContextualSpacing(false);
                     p.SetKeepLines(true);
                     p.SetKeepNext(true);
                 }
 
                 function formatInvestigation(p) {
-                    p.SetItalic(true);
+                    p.SetItalic(false);
                     p.SetBold(false);
                     p.SetIndLeft(INVESTIGATION_INDENT);
                     p.SetSpacingBefore(0, false);
-                    p.SetSpacingAfter(0, false);
+                    p.SetSpacingAfter(120, false);
+                    p.SetContextualSpacing(false);
                     p.SetKeepLines(true);
                     p.SetWidowControl(true);
+
+                    // Bold only the investigation label through the first colon.
+                    var t = cleanText(p);
+                    var c = t.indexOf(":");
+                    if (c >= 0) {
+                        var r = p.GetRange(0, c + 1);
+                        if (r) r.SetBold(true);
+                    }
                 }
 
                 function nextNonEmptyText(startIndex) {
@@ -296,15 +314,9 @@
                     if (isHeading(text)) {
                         clinicalFormattingStarted = true;
 
-                        // Standardise key section headings without changing clinical prose.
-                        if (ASSESSMENT_HEADINGS[h]) {
-                            p.SetText("ASSESSMENT / ISSUES:");
-                            h = "ASSESSMENT / ISSUES";
-                        } else if (PLAN_HEADINGS[h]) {
-                            p.SetText("PLAN:");
-                            h = "PLAN";
-                        }
-
+                        // Do not rewrite paragraph text here. Changing paragraph text while
+                        // iterating can invalidate ONLYOFFICE paragraph references and was the
+                        // cause of the flattened v16 assessment/plan formatting.
                         formatHeading(p);
 
                         mode = "";
@@ -430,9 +442,8 @@
                         }
 
                         if (inSection) {
-                            sp.SetSpacingBefore(0, false);
-                            sp.SetSpacingAfter(0, false);
-                            sp.SetContextualSpacing(true);
+                            // Preserve the paragraph-level spacing already applied above;
+                            // only remember the final paragraph so the section can end cleanly.
                             lastPara = sp;
                         }
                     }
@@ -447,95 +458,30 @@
                 addSpacingAfterSection(HISTORY_HEADINGS, 240);
 
                 // Assessment and plan remain compact.
-                addSpacingAfterSection(ASSESSMENT_HEADINGS, 0);
-                addSpacingAfterSection(PLAN_HEADINGS, 0);
+                addSpacingAfterSection(ASSESSMENT_HEADINGS, 120);
+                addSpacingAfterSection(PLAN_HEADINGS, 120);
 
                 /*
-                 * THIRD PASS: pagination control.
-                 * - major headings stay with following content
-                 * - blank paragraphs immediately after a heading are also chained
-                 * - INVESTIGATIONS stays with its first result; first result stays with
-                 *   the second result when two or more are present
+                 * THIRD PASS: conservative pagination control.
+                 * Keep each major heading with the immediately following paragraph only.
+                 * Do not chain multiple investigation paragraphs together: that caused
+                 * the large awkward page movement seen in v16.
                  */
+                paragraphs = doc.GetAllParagraphs();
                 for (var q = 0; q < paragraphs.length; q++) {
                     var qp = paragraphs[q];
                     var qt = cleanText(qp);
                     if (!qt) continue;
 
-                    if (isHeading(qt)) {
+                    if (isHeading(qt) || isFollowUpHeading(qt)) {
                         qp.SetKeepLines(true);
                         qp.SetKeepNext(true);
-
-                        // Chain intervening blank paragraphs to the next content paragraph.
-                        for (var b = q + 1; b < paragraphs.length; b++) {
-                            var bt = cleanText(paragraphs[b]);
-                            if (bt) break;
-                            paragraphs[b].SetKeepNext(true);
-                        }
-                    }
-                }
-
-                // Investigation spacing and keep-with-next chain.
-                var inInv = false;
-                var lastInv = null;
-                var firstInv = null;
-                var secondInv = null;
-
-                for (var k = 0; k < paragraphs.length; k++) {
-                    var ip = paragraphs[k];
-                    var it = cleanText(ip);
-                    if (!it) continue;
-                    var ih = normHeading(it);
-
-                    if (ih === "INVESTIGATIONS") {
-                        inInv = true;
-                        lastInv = null;
-                        firstInv = null;
-                        secondInv = null;
-                        continue;
                     }
 
-                    if (inInv) {
-                        if (isHeading(it) || isXestroBoundary(it)) {
-                            if (lastInv) {
-                                lastInv.SetSpacingAfter(120, false);
-                                lastInv.SetContextualSpacing(false);
-                            }
-                            if (firstInv && secondInv) {
-                                firstInv.SetKeepNext(true);
-                            }
-                            inInv = false;
-                            continue;
-                        }
-
-                        if (looksLikeInvestigation(it)) {
-                            if (!firstInv) {
-                                firstInv = ip;
-                            } else if (!secondInv) {
-                                secondInv = ip;
-                                firstInv.SetKeepNext(true);
-                            }
-                            lastInv = ip;
-                            continue;
-                        }
-
-                        if (lastInv) {
-                            lastInv.SetSpacingAfter(120, false);
-                            lastInv.SetContextualSpacing(false);
-                        }
-                        if (firstInv && secondInv) {
-                            firstInv.SetKeepNext(true);
-                        }
-                        inInv = false;
+                    if (looksLikeInvestigation(qt)) {
+                        qp.SetKeepLines(true);
+                        qp.SetWidowControl(true);
                     }
-                }
-
-                if (inInv && lastInv) {
-                    lastInv.SetSpacingAfter(120, false);
-                    lastInv.SetContextualSpacing(false);
-                }
-                if (inInv && firstInv && secondInv) {
-                    firstInv.SetKeepNext(true);
                 }
 
                 return "OK";
@@ -554,7 +500,7 @@
     };
 
     window.Asc.plugin.init = function () {
-        setStatus("Coastal LyreBird Formatter v16 loaded — click Format current letter.", false);
+        setStatus("Coastal LyreBird Formatter v17 loaded — click Format current letter.", false);
     };
 
     window.Asc.plugin.button = function (id) {
