@@ -3,7 +3,7 @@
 
     /*
      * Coastal Respiratory & Sleep Specialists
-     * Xestro / ONLYOFFICE Clinical Letter Formatter v26 XESTRO COMPATIBILITY FIX
+     * Xestro / ONLYOFFICE Clinical Letter Formatter v28 FINAL SPACING FIX
      *
      * PURPOSE
      * -------
@@ -12,10 +12,10 @@
      * letterhead, date, Re:/demographics, salutation, signature/author block,
      * provider number, cc, disclaimer and footer.
      *
-     * v26 layout (measured directly from the user-corrected Greg DOCX):
+     * v28 layout (measured directly from the user-corrected Steven DOCX):
      * - Arial 11 pt black justified clinical body; Arial 12 pt black bold-underlined major headings
-     * - one blank line BEFORE major section headings; NO blank line AFTER headings
-     * - headings have 0 pt paragraph-after spacing
+     * - one blank line BEFORE major section headings; no blank paragraph AFTER headings
+     * - major headings have 8 pt paragraph-after spacing (this is the user-corrected Steven spacing)
      * - the opening LyreBird summary paragraph has 12 pt paragraph-before spacing
      * - numbered diagnoses/problems align number at the section left edge; item text begins 18 pt in
      * - dash subpoints use 36 pt text indent with a 9 pt hanging indent
@@ -48,6 +48,7 @@
                 // Michelle section/line-spacing pattern.
                 var BODY_FONT_SIZE = 22;             // 11 pt (ONLYOFFICE uses half-points)
                 var HEADING_FONT_SIZE = 24;          // 12 pt
+                var HEADING_GAP_AFTER = 160;          // 8 pt after major headings
                 var MAIN_LIST_TEXT_INDENT = 360;     // 18 pt: text position; number starts at left margin
                 var SUBPOINT_TEXT_INDENT = 720;      // 36 pt: matches the slightly deeper indent in edited output 46
                 var SUBPOINT_HANG = 180;             // 9 pt: dash sits at 27 pt; wrapped text starts at 36 pt
@@ -239,6 +240,31 @@
                     return CANONICAL_HEADINGS[h] || null;
                 }
 
+                function replaceParagraphTextCompat(p, newText) {
+                    if (!p || !newText) return false;
+                    try {
+                        if (cleanText(p) === newText) return true;
+                    } catch (ignoreCompareError) {}
+
+                    // Preferred API. Some older Xestro/ONLYOFFICE builds expose the
+                    // method but do not actually replace existing paragraph content.
+                    try {
+                        if (typeof p.SetText === "function") p.SetText(newText);
+                        if (cleanText(p) === newText) return true;
+                    } catch (ignoreSetTextError) {}
+
+                    // Compatibility fallback: rebuild only the heading paragraph.
+                    // This is safe because recognised headings contain plain text only.
+                    try {
+                        if (typeof p.RemoveAllElements === "function" && typeof p.AddText === "function") {
+                            p.RemoveAllElements();
+                            p.AddText(newText);
+                            return cleanText(p) === newText;
+                        }
+                    } catch (ignoreRebuildHeadingError) {}
+                    return false;
+                }
+
                 function isHeading(text) {
                     return !!SECTION_HEADINGS[normHeading(text)];
                 }
@@ -340,7 +366,7 @@
                     p.SetContextualSpacing(false);
                     p.SetBold(true);
                     p.SetItalic(false);
-                    safeCall(p, "SetUnderline", ["none"]);
+                    safeCall(p, "SetUnderline", [false]);
                     safeCall(p, "SetFontSize", [BODY_FONT_SIZE]); // 11 pt
                     safeCall(p, "SetHighlight", ["none"]);
                     p.SetKeepLines(true);
@@ -358,7 +384,7 @@
                     p.SetContextualSpacing(true);
                     p.SetBold(false);
                     p.SetItalic(false);
-                    safeCall(p, "SetUnderline", ["none"]);
+                    safeCall(p, "SetUnderline", [false]);
                     safeCall(p, "SetFontSize", [BODY_FONT_SIZE]); // 11 pt
                     safeCall(p, "SetHighlight", ["none"]);
                     p.SetKeepLines(true);
@@ -373,7 +399,7 @@
                     p.SetContextualSpacing(false);
                     p.SetBold(false);
                     p.SetItalic(false);
-                    safeCall(p, "SetUnderline", ["none"]);
+                    safeCall(p, "SetUnderline", [false]);
                     safeCall(p, "SetFontSize", [BODY_FONT_SIZE]); // 11 pt
                     safeCall(p, "SetHighlight", ["none"]);
                     p.SetKeepLines(true);
@@ -389,20 +415,20 @@
                     normaliseClinicalText(p);
                     p.SetBold(true);
                     p.SetItalic(false);
-                    safeCall(p, "SetUnderline", ["single"]);
+                    safeCall(p, "SetUnderline", [true]);
                     safeCall(p, "SetFontSize", [HEADING_FONT_SIZE]); // 12 pt section headings
                     p.SetIndLeft(0);
                     safeCall(p, "SetIndFirstLine", [0]);
 
-                    // Exact rhythm from the corrected Greg file:
-                    // preserve one blank line BEFORE a major heading, remove any blank line
-                    // AFTER it, and place the first content line immediately under the heading.
+                    // Exact rhythm from the user-corrected Steven file:
+                    // preserve one blank line BEFORE a major heading; remove any blank paragraph
+                    // AFTER it, but retain 8 pt paragraph spacing after the heading itself.
                     if (hasBlankBefore) {
                         p.SetSpacingBefore(isFirstMajorHeading ? 0 : HEADING_GAP_BEFORE, false);
                     } else {
                         p.SetSpacingBefore(isFirstMajorHeading ? FIRST_HEADING_NO_BLANK_BEFORE : HEADING_NO_BLANK_BEFORE, false);
                     }
-                    p.SetSpacingAfter(0, false);
+                    p.SetSpacingAfter(HEADING_GAP_AFTER, false);
                     p.SetContextualSpacing(false);
                     p.SetKeepLines(true);
                     p.SetKeepNext(true);
@@ -414,7 +440,7 @@
                     // Align it with the text of numbered problems (18 pt from the left).
                     p.SetBold(true);
                     p.SetItalic(false);
-                    safeCall(p, "SetUnderline", ["none"]);
+                    safeCall(p, "SetUnderline", [false]);
                     safeCall(p, "SetFontSize", [BODY_FONT_SIZE]); // 11 pt
                     safeCall(p, "SetHighlight", ["none"]);
                     p.SetIndLeft(MAIN_LIST_TEXT_INDENT);
@@ -462,7 +488,7 @@
                     safeCall(p, "SetIndFirstLine", [-INVESTIGATION_HANG]);
                     p.SetItalic(true);
                     p.SetBold(false);
-                    safeCall(p, "SetUnderline", ["none"]);
+                    safeCall(p, "SetUnderline", [false]);
                     safeCall(p, "SetFontSize", [BODY_FONT_SIZE]); // 11 pt
                     safeCall(p, "SetHighlight", ["none"]);
                     p.SetSpacingBefore(0, false);
@@ -603,8 +629,8 @@
                         // Title Case form used in output 46. ApiParagraph.SetText is used only
                         // on the heading paragraph itself; list/body paragraphs are untouched.
                         var canonicalHeading = canonicalHeadingText(text);
-                        if (canonicalHeading && typeof p.SetText === "function") {
-                            safeCall(p, "SetText", [canonicalHeading]);
+                        if (canonicalHeading) {
+                            replaceParagraphTextCompat(p, canonicalHeading);
                         }
 
                         var blankAfterHeading = hasImmediateBlankAfter(i);
@@ -840,7 +866,7 @@
     };
 
     window.Asc.plugin.init = function () {
-        setStatus("Coastal LyreBird Formatter v26 XESTRO COMPATIBILITY FIX loaded — click Format current letter.", false);
+        setStatus("Coastal LyreBird Formatter v28 FINAL SPACING FIX loaded — click Format current letter.", false);
     };
 
     window.Asc.plugin.button = function (id) {
