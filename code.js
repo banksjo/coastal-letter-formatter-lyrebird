@@ -3,7 +3,7 @@
 
     /*
      * Coastal Respiratory & Sleep Specialists
-     * Xestro / ONLYOFFICE Clinical Letter Formatter v25 FIXED CANDIDATE
+     * Xestro / ONLYOFFICE Clinical Letter Formatter v26 XESTRO COMPATIBILITY FIX
      *
      * PURPOSE
      * -------
@@ -12,7 +12,7 @@
      * letterhead, date, Re:/demographics, salutation, signature/author block,
      * provider number, cc, disclaimer and footer.
      *
-     * v25 fixed-candidate layout (measured directly from the user-corrected Greg DOCX):
+     * v26 layout (measured directly from the user-corrected Greg DOCX):
      * - Arial 11 pt black justified clinical body; Arial 12 pt black bold-underlined major headings
      * - one blank line BEFORE major section headings; NO blank line AFTER headings
      * - headings have 0 pt paragraph-after spacing
@@ -59,7 +59,26 @@
                 var FIRST_HEADING_NO_BLANK_BEFORE = 240; // 12 pt if the first heading has no source blank
                 var FIRST_CLINICAL_PROSE_GAP = 240;    // 12 pt before the opening LyreBird summary paragraph
                 var POST_INVESTIGATION_PROSE_GAP = 240; // 12 pt before narrative after investigations
-                var CLINICAL_BLACK = Api.HexColor("#000000");
+
+                // Xestro may run an older ONLYOFFICE build than the current public API.
+                // Optional formatting calls are therefore feature-detected so one unsupported
+                // method cannot abort the whole formatter.
+                function safeCall(obj, method, args) {
+                    try {
+                        if (obj && typeof obj[method] === "function") {
+                            return obj[method].apply(obj, args || []);
+                        }
+                    } catch (ignoreCompatibilityError) {}
+                    return null;
+                }
+
+                function safeBlack(p) {
+                    try {
+                        if (p && typeof p.SetColor === "function" && typeof Api.HexColor === "function") {
+                            p.SetColor(Api.HexColor("#000000"));
+                        }
+                    } catch (ignoreColorCompatibilityError) {}
+                }
 
                 // Canonical display text for recognised section headings.
                 // This allows LyreBird to output ALL CAPS, Title Case or a trailing colon
@@ -289,42 +308,24 @@
 
                 function normaliseClinicalText(p) {
                     if (!p) return;
-                    p.SetFontFamily("Arial");
-                    p.SetColor(CLINICAL_BLACK);
-                    p.SetHighlight("none");
-                    if (typeof p.SetSpacingLine === "function") {
-                        p.SetSpacingLine(240, "auto");
-                    }
-                    if (typeof p.SetJc === "function") {
-                        p.SetJc("both");
-                    }
-                    if (typeof p.SetWidowControl === "function") {
-                        p.SetWidowControl(true);
-                    }
+                    safeCall(p, "SetFontFamily", ["Arial"]);
+                    safeBlack(p);
+                    safeCall(p, "SetHighlight", ["none"]);
+                    safeCall(p, "SetSpacingLine", [240, "auto"]);
+                    safeCall(p, "SetJc", ["both"]);
+                    // These methods are known to exist in the older Xestro build, but still
+                    // guard them so a version mismatch can never stop the formatter.
+                    safeCall(p, "SetWidowControl", [true]);
                 }
 
                 function makeNumbering() {
-                    var numbering = doc.CreateNumbering("numbered");
-                    var level = numbering.GetLevel(0);
-
-                    // Keep a genuine numbered list, but put the number itself on the same
-                    // left edge as the section heading. The item text begins 18 pt in.
-                    level.SetCustomType("decimal", "%1.", "left");
-                    level.SetSuff("tab");
-                    var levelPr = level.GetParaPr();
-                    levelPr.SetIndLeft(MAIN_LIST_TEXT_INDENT);
-                    levelPr.SetIndFirstLine(-MAIN_LIST_TEXT_INDENT);
-                    return numbering;
+                    // Use ONLYOFFICE's built-in numbered list. Custom list-level APIs were
+                    // introduced later and can fail in the older editor embedded by Xestro.
+                    return doc.CreateNumbering("numbered");
                 }
 
                 function makeInvestigationBullets() {
-                    var numbering = doc.CreateNumbering("bullet");
-                    var level = numbering.GetLevel(0);
-                    level.SetSuff("tab");
-                    var levelPr = level.GetParaPr();
-                    levelPr.SetIndLeft(INVESTIGATION_TEXT_INDENT);
-                    levelPr.SetIndFirstLine(-INVESTIGATION_HANG);
-                    return numbering;
+                    return doc.CreateNumbering("bullet");
                 }
 
                 function applyMainNumbering(p, numbering, isFirstItem) {
@@ -333,15 +334,15 @@
                     // Direct paragraph indents make the alignment deterministic even if
                     // ONLYOFFICE retains an older list indent on a re-formatted paragraph.
                     p.SetIndLeft(MAIN_LIST_TEXT_INDENT);
-                    p.SetIndFirstLine(-MAIN_LIST_TEXT_INDENT);
+                    safeCall(p, "SetIndFirstLine", [-MAIN_LIST_TEXT_INDENT]);
                     p.SetSpacingBefore(isFirstItem ? 0 : 30, false);
                     p.SetSpacingAfter(0, false);
                     p.SetContextualSpacing(false);
                     p.SetBold(true);
                     p.SetItalic(false);
-                    p.SetUnderline("none");
-                    p.SetFontSize(BODY_FONT_SIZE); // 11 pt
-                    p.SetHighlight("none");
+                    safeCall(p, "SetUnderline", ["none"]);
+                    safeCall(p, "SetFontSize", [BODY_FONT_SIZE]); // 11 pt
+                    safeCall(p, "SetHighlight", ["none"]);
                     p.SetKeepLines(true);
                 }
 
@@ -351,15 +352,15 @@
                     // matching the edited output while keeping multi-line subpoints aligned.
                     normaliseClinicalText(p);
                     p.SetIndLeft(SUBPOINT_TEXT_INDENT);
-                    p.SetIndFirstLine(-SUBPOINT_HANG);
+                    safeCall(p, "SetIndFirstLine", [-SUBPOINT_HANG]);
                     p.SetSpacingBefore(0, false);
                     p.SetSpacingAfter(0, false);
                     p.SetContextualSpacing(true);
                     p.SetBold(false);
                     p.SetItalic(false);
-                    p.SetUnderline("none");
-                    p.SetFontSize(BODY_FONT_SIZE); // 11 pt
-                    p.SetHighlight("none");
+                    safeCall(p, "SetUnderline", ["none"]);
+                    safeCall(p, "SetFontSize", [BODY_FONT_SIZE]); // 11 pt
+                    safeCall(p, "SetHighlight", ["none"]);
                     p.SetKeepLines(true);
                     p.SetWidowControl(true);
                 }
@@ -372,15 +373,15 @@
                     p.SetContextualSpacing(false);
                     p.SetBold(false);
                     p.SetItalic(false);
-                    p.SetUnderline("none");
-                    p.SetFontSize(BODY_FONT_SIZE); // 11 pt
-                    p.SetHighlight("none");
+                    safeCall(p, "SetUnderline", ["none"]);
+                    safeCall(p, "SetFontSize", [BODY_FONT_SIZE]); // 11 pt
+                    safeCall(p, "SetHighlight", ["none"]);
                     p.SetKeepLines(true);
                     var t = cleanText(p);
                     var c = t.indexOf(":");
-                    if (c >= 0) {
-                        var r = p.GetRange(0, c + 1);
-                        if (r) r.SetBold(true);
+                    if (c >= 0 && typeof p.GetRange === "function") {
+                        var r = safeCall(p, "GetRange", [0, c + 1]);
+                        if (r) safeCall(r, "SetBold", [true]);
                     }
                 }
 
@@ -388,10 +389,10 @@
                     normaliseClinicalText(p);
                     p.SetBold(true);
                     p.SetItalic(false);
-                    p.SetUnderline("single");
-                    p.SetFontSize(HEADING_FONT_SIZE); // 12 pt section headings
+                    safeCall(p, "SetUnderline", ["single"]);
+                    safeCall(p, "SetFontSize", [HEADING_FONT_SIZE]); // 12 pt section headings
                     p.SetIndLeft(0);
-                    p.SetIndFirstLine(0);
+                    safeCall(p, "SetIndFirstLine", [0]);
 
                     // Exact rhythm from the corrected Greg file:
                     // preserve one blank line BEFORE a major heading, remove any blank line
@@ -413,11 +414,11 @@
                     // Align it with the text of numbered problems (18 pt from the left).
                     p.SetBold(true);
                     p.SetItalic(false);
-                    p.SetUnderline("none");
-                    p.SetFontSize(BODY_FONT_SIZE); // 11 pt
-                    p.SetHighlight("none");
+                    safeCall(p, "SetUnderline", ["none"]);
+                    safeCall(p, "SetFontSize", [BODY_FONT_SIZE]); // 11 pt
+                    safeCall(p, "SetHighlight", ["none"]);
                     p.SetIndLeft(MAIN_LIST_TEXT_INDENT);
-                    p.SetIndFirstLine(0);
+                    safeCall(p, "SetIndFirstLine", [0]);
                     p.SetSpacingBefore(60, false); // 3 pt
                     p.SetSpacingAfter(0, false);
                     p.SetContextualSpacing(false);
@@ -428,9 +429,9 @@
                 function formatFollowUpBody(p) {
                     normaliseClinicalText(p);
                     p.SetIndLeft(SUBPOINT_TEXT_INDENT);
-                    p.SetIndFirstLine(0);
-                    p.SetFontSize(BODY_FONT_SIZE);
-                    p.SetHighlight("none");
+                    safeCall(p, "SetIndFirstLine", [0]);
+                    safeCall(p, "SetFontSize", [BODY_FONT_SIZE]);
+                    safeCall(p, "SetHighlight", ["none"]);
                     p.SetSpacingBefore(0, false);
                     p.SetSpacingAfter(0, false);
                     p.SetContextualSpacing(true);
@@ -442,10 +443,10 @@
                     normaliseClinicalText(p);
                     // General LyreBird clinical prose. Preserve inline emphasis but normalise
                     // the approved body size and paragraph geometry.
-                    p.SetFontSize(BODY_FONT_SIZE);
-                    p.SetHighlight("none");
+                    safeCall(p, "SetFontSize", [BODY_FONT_SIZE]);
+                    safeCall(p, "SetHighlight", ["none"]);
                     p.SetIndLeft(0);
-                    p.SetIndFirstLine(0);
+                    safeCall(p, "SetIndFirstLine", [0]);
                     p.SetSpacingBefore(spacingBeforeTwips || 0, false);
                     p.SetSpacingAfter(0, false);
                     p.SetContextualSpacing(false);
@@ -458,12 +459,12 @@
                     // investigation/provider/date label through the first colon is bold italic.
                     p.SetNumbering(bulletNumbering.GetLevel(0));
                     p.SetIndLeft(INVESTIGATION_TEXT_INDENT);
-                    p.SetIndFirstLine(-INVESTIGATION_HANG);
+                    safeCall(p, "SetIndFirstLine", [-INVESTIGATION_HANG]);
                     p.SetItalic(true);
                     p.SetBold(false);
-                    p.SetUnderline("none");
-                    p.SetFontSize(BODY_FONT_SIZE); // 11 pt
-                    p.SetHighlight("none");
+                    safeCall(p, "SetUnderline", ["none"]);
+                    safeCall(p, "SetFontSize", [BODY_FONT_SIZE]); // 11 pt
+                    safeCall(p, "SetHighlight", ["none"]);
                     p.SetSpacingBefore(0, false);
                     p.SetSpacingAfter(0, false);
                     p.SetContextualSpacing(true);
@@ -472,11 +473,11 @@
 
                     var t = cleanText(p);
                     var c = t.indexOf(":");
-                    if (c >= 0) {
-                        var r = p.GetRange(0, c + 1);
+                    if (c >= 0 && typeof p.GetRange === "function") {
+                        var r = safeCall(p, "GetRange", [0, c + 1]);
                         if (r) {
-                            r.SetBold(true);
-                            r.SetItalic(true);
+                            safeCall(r, "SetBold", [true]);
+                            safeCall(r, "SetItalic", [true]);
                         }
                     }
                 }
@@ -534,7 +535,7 @@
                             try {
                                 p.SetSpacingBefore(0, false);
                                 p.SetSpacingAfter(0, false);
-                                if (typeof p.SetSpacingLine === "function") p.SetSpacingLine(BLANK_LINE_SPACING, "auto");
+                                safeCall(p, "SetSpacingLine", [BLANK_LINE_SPACING, "auto"]);
                             } catch (ignoreBlankFormattingError) {}
 
                             if (previousClinicalWasBlank) {
@@ -603,7 +604,7 @@
                         // on the heading paragraph itself; list/body paragraphs are untouched.
                         var canonicalHeading = canonicalHeadingText(text);
                         if (canonicalHeading && typeof p.SetText === "function") {
-                            p.SetText(canonicalHeading);
+                            safeCall(p, "SetText", [canonicalHeading]);
                         }
 
                         var blankAfterHeading = hasImmediateBlankAfter(i);
@@ -721,17 +722,17 @@
                         if (bp && typeof bp.Delete === "function") {
                             bp.Delete();
                         } else if (bp) {
-                            bp.SetFontSize(2);
+                            safeCall(bp, "SetFontSize", [2]);
                             bp.SetSpacingBefore(0, false);
                             bp.SetSpacingAfter(0, false);
-                            if (typeof bp.SetSpacingLine === "function") bp.SetSpacingLine(20, "exact");
+                            if (typeof bp.SetSpacingLine === "function") safeCall(bp, "SetSpacingLine", [20, "exact"]);
                         }
                     } catch (ignoreDeleteError) {
                         try {
-                            bp.SetFontSize(2);
+                            safeCall(bp, "SetFontSize", [2]);
                             bp.SetSpacingBefore(0, false);
                             bp.SetSpacingAfter(0, false);
-                            if (typeof bp.SetSpacingLine === "function") bp.SetSpacingLine(20, "exact");
+                            if (typeof bp.SetSpacingLine === "function") safeCall(bp, "SetSpacingLine", [20, "exact"]);
                         } catch (ignoreFallbackError) {}
                     }
                 }
@@ -839,7 +840,7 @@
     };
 
     window.Asc.plugin.init = function () {
-        setStatus("Coastal LyreBird Formatter v25 FIXED CANDIDATE loaded — click Format current letter.", false);
+        setStatus("Coastal LyreBird Formatter v26 XESTRO COMPATIBILITY FIX loaded — click Format current letter.", false);
     };
 
     window.Asc.plugin.button = function (id) {
